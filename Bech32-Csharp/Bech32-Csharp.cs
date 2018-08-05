@@ -92,6 +92,7 @@ namespace Bech32_Csharp
 		private static bool verifyChecksum(string hrp, byte[] dataWithChecksum) {
 			byte[] values = new byte[hrp.Length * 2 + 1 + dataWithChecksum.Length];
 			hrpExpand(hrp, values);
+			System.Buffer.BlockCopy(dataWithChecksum, 0, values, hrp.Length * 2 + 1, dataWithChecksum.Length);
 			return PolyMod(values) == 1;
 		}
 		private static int convertBits(byte[] bytes, int inBits, uint outBits, bool pad, byte[] converted) {
