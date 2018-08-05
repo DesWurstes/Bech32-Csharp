@@ -2,9 +2,9 @@
 
 using System;
 using Xunit;
-using static Bech32-Csharp.Converter;
+using static Bech32_Csharp.Converter;
 
-namespace Bech32-Csharp-tests
+namespace Bech32_Csharp_tests
 {
 	public static class Test
 	{
