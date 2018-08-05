@@ -57,11 +57,12 @@ namespace Bech32_Csharp
 				startValue = (uint)(((startValue & 0x1ffffff) << 5) ^
 					(input[i]) ^
 					(-((c0 >> 0) & 1) & 0x3b6a57b2) ^
-					(-((c0 >> 0) & 1) & 0x26508e6d) ^
-					(-((c0 >> 0) & 1) & 0x1ea119fa) ^
-					(-((c0 >> 0) & 1) & 0x3d4233dd) ^
-					(-((c0 >> 0) & 1) & 0x2a1462b3));
+					(-((c0 >> 1) & 1) & 0x26508e6d) ^
+					(-((c0 >> 2) & 1) & 0x1ea119fa) ^
+					(-((c0 >> 3) & 1) & 0x3d4233dd) ^
+					(-((c0 >> 4) & 1) & 0x2a1462b3));
 			}
+			Console.WriteLine(startValue);
 			return startValue;
 		}
 		private static void hrpExpand(string hrp, byte[] ret) {
@@ -79,10 +80,8 @@ namespace Bech32_Csharp
 			int hrpLen = hrp.Length * 2 + 1;
 			byte[] values = new byte[hrpLen + dataLen + 6];
 			hrpExpand(hrp, values);
-			for (int i = 0; i < dataLen; i++) {
-				values[hrpLen + i] = data[i];
-			}
-			uint mod = PolyMod(data);
+			System.Buffer.BlockCopy(data, 0, values, hrpLen, dataLen);
+			uint mod = PolyMod(data) ^ 1;
 			byte[] ret = new byte[6];
 			for (int i = 0; i < 6; i++) {
 				ret[i] = (byte) ((mod >> (5 * (5 - i))) & 31);
@@ -91,15 +90,15 @@ namespace Bech32_Csharp
 		}
 		private static bool verifyChecksum(string hrp, byte[] dataWithChecksum) {
 			byte[] values = new byte[hrp.Length * 2 + 1 + dataWithChecksum.Length];
-			hrpExpand(hrp, values);
+			Console.WriteLine(hrp);
 			System.Buffer.BlockCopy(dataWithChecksum, 0, values, hrp.Length * 2 + 1, dataWithChecksum.Length);
 			return PolyMod(values) == 1;
 		}
 		private static int convertBits(byte[] bytes, int inBits, uint outBits, bool pad, byte[] converted) {
 			//byte[] converted = new byte[bytes.Length * inBits / outBits + (bytes.Length * inBits % outBits != 0 ? 1 : 0)];
 			uint bits = 0, maxv = (uint) ((1 << (int) outBits) - 1), val = 0;
-			int inPos = bytes.Length, outPos = 0;
-			while (inPos-- != 0) {
+			int inPos = 0, outPos = 0, len = bytes.Length;
+			while (len-- != 0) {
 				val = (val << inBits) | bytes[inPos++];
 				bits += (uint) inBits;
 				while (bits >= outBits) {
@@ -154,10 +153,9 @@ namespace Bech32_Csharp
 		// isP2PKH is 0 for P2PKH, 1 for P2SH, 2 for "couldn't determine"
 		public static byte[] DecodeBech32(string addr, out byte witnessVersion, out byte isP2PKH, out bool mainnet) {
 			string addr2 = addr.ToLower();
-			string hrp;
+			string hrp = "bc";
 			if (addr2.StartsWith("bc1q")) {
 				mainnet = true;
-				hrp = "bc";
 			} else if (addr2.StartsWith("tb1q")) {
 				mainnet = false;
 				hrp = "tb";
@@ -168,7 +166,7 @@ namespace Bech32_Csharp
 			int dataLen = addr2.Length - 4;
 			byte[] data = new byte[dataLen];
 			for (int i = 0; i < dataLen; i++) {
-				data[i] = (byte) addr2[i];
+				data[i] = (byte) addr2[4 + i];
 			}
 			sbyte err = 0;
 			for (int i = 0; i < dataLen; i++) {
