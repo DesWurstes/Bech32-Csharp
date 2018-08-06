@@ -49,7 +49,6 @@ namespace Bech32_Csharp
 			-1, 29, -1, 24, 13, 25,  9,  8, 23, -1, 18, 22, 31, 27, 19, -1,
 			 1,  0,  3, 16, 11, 28, 12, 14,  6,  4,  2, -1, -1, -1, -1, -1
 		};
-
 		private static uint PolyMod(byte[] input) {
 			uint startValue = 1;
 			for (uint i = 0; i < input.Length; i++) {
@@ -62,8 +61,7 @@ namespace Bech32_Csharp
 					(-((c0 >> 3) & 1) & 0x3d4233dd) ^
 					(-((c0 >> 4) & 1) & 0x2a1462b3));
 			}
-			Console.WriteLine(startValue);
-			return startValue;
+			return startValue ^ 1;
 		}
 		private static void hrpExpand(string hrp, byte[] ret) {
 			int len = hrp.Length;
@@ -81,7 +79,7 @@ namespace Bech32_Csharp
 			byte[] values = new byte[hrpLen + dataLen + 6];
 			hrpExpand(hrp, values);
 			System.Buffer.BlockCopy(data, 0, values, hrpLen, dataLen);
-			uint mod = PolyMod(data) ^ 1;
+			uint mod = PolyMod(values);
 			byte[] ret = new byte[6];
 			for (int i = 0; i < 6; i++) {
 				ret[i] = (byte) ((mod >> (5 * (5 - i))) & 31);
@@ -90,14 +88,14 @@ namespace Bech32_Csharp
 		}
 		private static bool verifyChecksum(string hrp, byte[] dataWithChecksum) {
 			byte[] values = new byte[hrp.Length * 2 + 1 + dataWithChecksum.Length];
-			Console.WriteLine(hrp);
+			hrpExpand(hrp, values);
 			System.Buffer.BlockCopy(dataWithChecksum, 0, values, hrp.Length * 2 + 1, dataWithChecksum.Length);
-			return PolyMod(values) == 1;
+			return PolyMod(values) == 0;
 		}
-		private static int convertBits(byte[] bytes, int inBits, uint outBits, bool pad, byte[] converted) {
+		private static int convertBits(byte[] bytes, int inBits, uint outBits, bool pad, byte[] converted, int inPos, int outPos, int len) {
 			//byte[] converted = new byte[bytes.Length * inBits / outBits + (bytes.Length * inBits % outBits != 0 ? 1 : 0)];
 			uint bits = 0, maxv = (uint) ((1 << (int) outBits) - 1), val = 0;
-			int inPos = 0, outPos = 0, len = bytes.Length;
+			//int len = bytes.Length - inPos;
 			while (len-- != 0) {
 				val = (val << inBits) | bytes[inPos++];
 				bits += (uint) inBits;
@@ -111,7 +109,7 @@ namespace Bech32_Csharp
 					converted[outPos++] = (byte)((val << (int)(outBits - bits)) & maxv);
 				}
 			} else if ((((val << (int) (outBits - bits)) & maxv) != 0) || bits >= inBits) {
-				throw new Bech32ConversionException("Bit conversion error!");
+				throw new Bech32ConversionException("Bit conversion error!" + bits + " " + inBits + " " + ((val << (int) (outBits - bits)) & maxv));
 			}
 			return outPos;
 		}
@@ -126,26 +124,27 @@ namespace Bech32_Csharp
 			if (witnessProgram.Length < 3 || witnessProgram.Length > 41) {
 				throw new Bech32ConversionException("Invalid witness program!");
 			}
-			System.Text.StringBuilder ret = new System.Text.StringBuilder(75);
+			System.Text.StringBuilder ret;
 			byte[] data = new byte[80];
-			int len = convertBits(witnessProgram, 8, 5, true, data);
+			int len = convertBits(witnessProgram, 8, 5, true, data, 0, 1, witnessProgram.Length);
+			data[0] = witnessVersion;
 			byte[] checksum;
 			if (mainnet) {
-				ret[0] = 'b';
-				ret[1] = 'c';
+				ret = new System.Text.StringBuilder("bc", 75);;
 				checksum = createChecksum("bc", data, len);
 			} else {
-				ret[0] = 't';
-				ret[1] = 'b';
+				ret = new System.Text.StringBuilder("bc", 75);;
 				checksum = createChecksum("tb", data, len);
 			}
-			ret[2] = '1';
-			ret[3] = CHARSET_BECH32[witnessVersion];
+			ret.Append('1');
 			for (int i = 0; i < len; i++) {
-				ret[4 + i] = (char) data[i];
+				ret.Append((char) data[i]);
 			}
-			for (int i = 4, k = len + 4; i < k; i++) {
+			for (int i = 3, k = len + 3; i < k; i++) {
 				ret[i] = CHARSET_BECH32[ret[i]];
+			}
+			for (int i = 0; i < 6; i++) {
+				ret.Append(CHARSET_BECH32[checksum[i]]);
 			}
 			return ret.ToString();
 		}
@@ -163,22 +162,22 @@ namespace Bech32_Csharp
 				throw new Bech32ConversionException("Invalid Bech32 address!");
 			}
 			witnessVersion = 0;
-			int dataLen = addr2.Length - 4;
+			int dataLen = addr2.Length - 3;
 			byte[] data = new byte[dataLen];
 			for (int i = 0; i < dataLen; i++) {
-				data[i] = (byte) addr2[4 + i];
+				data[i] = (byte) addr2[3 + i];
 			}
 			sbyte err = 0;
 			for (int i = 0; i < dataLen; i++) {
 				sbyte k = DICT_BECH32[data[i]];
 				err |= k;
-				data[i] = (byte) k;
+				data[i] = unchecked((byte) k);
 			}
 			if (err == -1 || !verifyChecksum(hrp, data)) {
 				throw new Bech32ConversionException("Invalid Bech32 address!");
 			}
 			byte[] decoded = new byte[60];
-			int decodedLen = convertBits(data, 5, 8, false, decoded);
+			int decodedLen = convertBits(data, 5, 8, false, decoded, 1, 0, dataLen - 1 - 6);
 			switch (decodedLen) {
 				case 20:
 					isP2PKH = 0;
