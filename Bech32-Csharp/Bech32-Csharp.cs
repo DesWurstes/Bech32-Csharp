@@ -133,7 +133,7 @@ namespace Bech32_Csharp
 				ret = new System.Text.StringBuilder("bc", 75);;
 				checksum = createChecksum("bc", data, len);
 			} else {
-				ret = new System.Text.StringBuilder("bc", 75);;
+				ret = new System.Text.StringBuilder("tb", 75);;
 				checksum = createChecksum("tb", data, len);
 			}
 			ret.Append('1');
