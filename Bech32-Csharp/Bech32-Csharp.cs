@@ -61,7 +61,7 @@ namespace Bech32_Csharp
 					(-((c0 >> 3) & 1) & 0x3d4233dd) ^
 					(-((c0 >> 4) & 1) & 0x2a1462b3));
 			}
-			return startValue ^ 1;
+			return startValue;
 		}
 		private static void hrpExpand(string hrp, byte[] ret) {
 			int len = hrp.Length;
@@ -79,7 +79,7 @@ namespace Bech32_Csharp
 			byte[] values = new byte[hrpLen + dataLen + 6];
 			hrpExpand(hrp, values);
 			System.Buffer.BlockCopy(data, 0, values, hrpLen, dataLen);
-			uint mod = PolyMod(values);
+			uint mod = PolyMod(values) ^ 1;
 			byte[] ret = new byte[6];
 			for (int i = 0; i < 6; i++) {
 				ret[i] = (byte) ((mod >> (5 * (5 - i))) & 31);
@@ -90,7 +90,7 @@ namespace Bech32_Csharp
 			byte[] values = new byte[hrp.Length * 2 + 1 + dataWithChecksum.Length];
 			hrpExpand(hrp, values);
 			System.Buffer.BlockCopy(dataWithChecksum, 0, values, hrp.Length * 2 + 1, dataWithChecksum.Length);
-			return PolyMod(values) == 0;
+			return PolyMod(values) == 1;
 		}
 		private static int convertBits(byte[] bytes, int inBits, uint outBits, bool pad, byte[] converted, int inPos, int outPos, int len) {
 			//byte[] converted = new byte[bytes.Length * inBits / outBits + (bytes.Length * inBits % outBits != 0 ? 1 : 0)];
